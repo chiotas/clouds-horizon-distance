@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte';
     import { map } from '@windy/map';
-    import SunCalc from 'suncalc';
+    import SunCalc from '/suncalc';
 
     // Costanti
     const OBSERVER_HEIGHT = 1.7;
