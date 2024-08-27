@@ -191,7 +191,7 @@
 <style>
     .info-box {
         position: fixed; /* Posizionamento fisso rispetto alla finestra */
-        bottom: 60px; /* Posizionato 10px sopra il label giallo della timeline */
+        bottom: 80px; /* Posizionato 10px sopra il label giallo della timeline */
         left: 20px; /* Distanza dal bordo sinistro */
         background-color: var(--color-transparent); /* Colore di sfondo trasparente simile alla UI di Windy.com */
         color: white; /* Colore del testo bianco per il contrasto */
