@@ -170,37 +170,18 @@
 <!-- HTML per il box informativo -->
 <div class="info-box">
     <fieldset>
-        <legend>Coordinates</legend>
-        <label>Latitude: {lat}</label>
-        <label>Longitude: {lon}</label>
-    </fieldset>
-    <fieldset>
         <legend>Altitude</legend>
-        <label>Elevation: {elevation} m</label>
+        <label>Your Elevation: {elevation} m</label>
     </fieldset>
     <fieldset>
         <legend>Horizon Distance (Clouds)</legend>
-        <label>Low Clouds 300m: {distances.lowCloudsMin.toFixed(2)} km</label>
-        <label>Low Clouds 600m: {distances.lowCloudsMax.toFixed(2)} km</label>
-        <label>Middle Clouds 1500m: {distances.middleCloudsMin.toFixed(2)} km</label>
-        <label>Middle Clouds 2500m: {distances.middleCloudsMax.toFixed(2)} km</label>
-        <label>High Clouds 6500m: {distances.highClouds.toFixed(2)} km</label>
+        <label><b>L</b> block range: between {distances.lowCloudsMin.toFixed(0)} and {distances.lowCloudsMax.toFixed(0)} km</label>
+        <label><b>M</b> block range: between {distances.middleCloudsMin.toFixed(0)} and {distances.middleCloudsMax.toFixed(0)} km</label>
+        <label><b>H</b> block from {distances.highClouds.toFixed(0)} km</label>
     </fieldset>
 </div>
 
 <style>
-    .info-box {
-        position: fixed; /* Posizionamento fisso rispetto alla finestra */
-        bottom: 80px; /* Posizionato 10px sopra il label giallo della timeline */
-        left: 20px; /* Distanza dal bordo sinistro */
-        background-color: var(--color-transparent); /* Colore di sfondo trasparente simile alla UI di Windy.com */
-        color: white; /* Colore del testo bianco per il contrasto */
-        padding: 10px;
-        border-radius: 5px; /* Bordi arrotondati per un aspetto coerente */
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); /* Ombra leggera per un effetto di profondità */
-        max-width: 250px;
-        font-family: Arial, sans-serif;
-    }
 
     fieldset {
         border: none;
