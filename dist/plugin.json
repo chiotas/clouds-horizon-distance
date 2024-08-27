@@ -1,0 +1,13 @@
+{
+  "name": "windy-plugin-horizon-distance",
+  "version": "0.3.0",
+  "title": "Clouds Horizon Distance",
+  "description": "This plugin displays circles on the Windy map representing the horizon distances for different cloud heights, calculated based on the users clicked position, including the directions of sunrise and sunset. This allows for an approximate estimation of whether sunlight will be blocked by clouds at sunrise or sunset",
+  "author": "Francesco Gola",
+  "icon": "☀️",
+  "desktopUI": "rhpane",
+  "mobileUI": "fullscreen",
+  "built": 1724740369144,
+  "builtReadable": "2024-08-27T06:32:49.144Z",
+  "screenshot": "screenshot.jpg"
+}

@@ -33,6 +33,7 @@
     },
     "homepage": "https://docs.windy-plugins.com/",
     "dependencies": {
-        "@windycom/plugin-devtools": "^2.0.0"
+        "@windycom/plugin-devtools": "^2.0.0",
+        "suncalc": "^1.9.0"
     }
 }
