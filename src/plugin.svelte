@@ -45,50 +45,84 @@
         return Math.sqrt(2 * earthRadiusKm * totalHeight / 1000);
     }
 
-    function drawHorizonCircles(lat: number, lon: number, distances: number[], labelsText: string[]) {
-        // Rimuovere i cerchi e le etichette esistenti
-        horizonCircles.forEach(circle => map.removeLayer(circle));
-        horizonCircles = [];
-        labels.forEach(label => map.removeLayer(label));
-        labels = [];
+function drawHorizonCircles(lat: number, lon: number, distances: number[], labelsText: string[]) {
+    // Rimuovere i cerchi e le etichette esistenti
+    horizonCircles.forEach(circle => map.removeLayer(circle));
+    horizonCircles = [];
+    labels.forEach(label => map.removeLayer(label));
+    labels = [];
 
-        const circleStyles = [
-            { color: 'blue', dashArray: '5, 5', weight: 2 },
-            { color: 'blue', dashArray: '5, 5', weight: 2 },
-            { color: 'green', dashArray: '5, 5', weight: 2 },
-            { color: 'green', dashArray: '5, 5', weight: 2 },
-            { color: 'red', dashArray: '5, 5', weight: 2 },
-        ];
+    const circleStyles = [
+        { color: 'blue', dashArray: '5, 5', weight: 2 },
+        { color: 'blue', dashArray: '5, 5', weight: 2 },
+        { color: 'green', dashArray: '5, 5', weight: 2 },
+        { color: 'green', dashArray: '5, 5', weight: 2 },
+        { color: 'red', dashArray: '5, 5', weight: 2 },
+    ];
 
-        distances.forEach((distance, index) => {
-            // Creazione del cerchio sulla mappa
-            const circle = L.circle([lat, lon], {
-                color: circleStyles[index].color,
-                dashArray: circleStyles[index].dashArray,
-                weight: circleStyles[index].weight,
-                fillOpacity: 0,
-                radius: distance * 1000
-            }).addTo(map);
-            horizonCircles.push(circle);
+    distances.forEach((distance, index) => {
+        // Creazione del cerchio principale sulla mappa
+        const circle = L.circle([lat, lon], {
+            color: circleStyles[index].color,
+            dashArray: circleStyles[index].dashArray,
+            weight: circleStyles[index].weight,
+            fillOpacity: 0,
+            radius: distance * 1000
+        }).addTo(map);
+        horizonCircles.push(circle);
 
-            // Calcolo delle coordinate per l'etichetta
-            const labelLatLon = L.latLng(
-                lat + (distance / 111),  // Calcola la posizione dell'etichetta sopra il cerchio
-                lon
-            );
+        // Disegna cerchi aggiuntivi tra i range specificati
+        if (index === 0 || index === 2) {  // Intervalli 300-600m e 1500-2500m
+            const step = (index === 0) ? 100 : 200;  // 100m per il primo intervallo, 200m per il secondo
+            const start = (index === 0) ? LOW_CLOUDS_MIN : MIDDLE_CLOUDS_MIN;
+            const end = (index === 0) ? LOW_CLOUDS_MAX : MIDDLE_CLOUDS_MAX;
 
-            // Creazione dell'etichetta
-            const label = L.marker(labelLatLon, {
-                icon: L.divIcon({
-                    className: 'label',
-                    html: `<div style="color: ${circleStyles[index].color}; font-weight: bold;">${labelsText[index]} (${Math.round(distance)}km)</div>`,
-                    iconSize: [200, 40]
-                })
-            }).addTo(map);
-            labels.push(label);
-        });
-    }
+            // Stili per i cerchi aggiuntivi
+            const thinDashArray = '4, 6';  // Tratteggio più visibile
+            let thinWeight = 1.5;  // Peso leggermente aumentato
+            let thinOpacity = 0.5;  // Riduciamo un po' la trasparenza per maggiore visibilità
+            
+            // Modifiche specifiche per i cerchi verdi (intervallo 1500-2500m)
+            if (index === 2) {
+                thinWeight = 1.7;  // Maggiore peso per i cerchi verdi
+                thinOpacity = 0.7;  // Meno trasparenza per i cerchi verdi
+            }
 
+            for (let cloudHeight = start + step; cloudHeight < end; cloudHeight += step) {
+                const extraDistance = calculateHorizonDistance(elevation, cloudHeight);
+                const extraCircle = L.circle([lat, lon], {
+                    color: circleStyles[index].color,
+                    dashArray: thinDashArray,
+                    weight: thinWeight,
+                    fillOpacity: 0,
+                    opacity: thinOpacity,
+                    radius: extraDistance * 1000
+                }).addTo(map);
+                horizonCircles.push(extraCircle);
+
+                // Aggiungi l'etichetta per ogni cerchio aggiuntivo direttamente sopra il cerchio
+                const extraLabel = L.marker([lat + (extraDistance / 111), lon], {
+                    icon: L.divIcon({
+                        className: 'label',
+                        html: `<div style="color: ${circleStyles[index].color}; font-weight: bold;">${index === 0 ? "+100m" : "+200m"}</div>`,
+                        iconSize: [100, 20]
+                    })
+                }).addTo(map);
+                labels.push(extraLabel);
+            }
+        }
+
+        // Creazione dell'etichetta principale direttamente sopra il cerchio principale
+        const label = L.marker([lat + (distance / 111), lon], {
+            icon: L.divIcon({
+                className: 'label',
+                html: `<div style="color: ${circleStyles[index].color}; font-weight: bold;">${labelsText[index]} (${Math.round(distance)}km)</div>`,
+                iconSize: [200, 40]
+            })
+        }).addTo(map);
+        labels.push(label);
+    });
+}
     function drawSunLines(lat: number, lon: number, sunTimes: { sunrise: Date, sunset: Date }, highCloudDistance: number) {
         const lineLength = highCloudDistance + EXTRA_DISTANCE;
         const sunriseAzimuth = calculateAzimuth(lat, lon, sunTimes.sunrise);

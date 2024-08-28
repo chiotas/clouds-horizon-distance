@@ -1,23 +1,14 @@
-# Windy Plugin Template
+# Clouds Horizon Distance
 
-Template for development of Windy Plugins.
-
-**Documentation at: [https://docs.windy-plugins.com/](https://docs.windy-plugins.com/)**
+Find if clouds will fuck your sunrise or sunset
 
 # CHANGELOG
 
--   3.0.0
-    -   Updated `@windycom/plugin-devtools` for client v42.2.0
--   2.0.0
-    -   Completely new version of the plugin system based in Windy client v42+
--   1.0.0
-    -   New rollup compiler, no more riot architecture
-    -   Updated examples for Windy client v39
 -   0.4.0
-    -   Added `plugin-data-loader` to the Plugins API
+    -   Added intermediate rings for L and M clouds
 -   0.3.0
-    -   Examples moved to examples dir
+    -   Dynamic data box added
 -   0.2.0
-    -   Fixed wrong examples
--   0.1.1
-    -   Initial version of this repo
+    -   Removed visual debug as I was not anymore drunk
+-   0.1.0
+    -   Initial version of this plugin created when I was really drunk

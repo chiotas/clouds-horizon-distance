@@ -1,14 +1,14 @@
 const __pluginConfig =  {
   "name": "windy-plugin-horizon-distance",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "title": "Clouds Horizon Distance",
   "description": "This plugin displays circles on the Windy map representing the horizon distances for different cloud heights, calculated based on the users clicked position, including the directions of sunrise and sunset. This allows for an approximate estimation of whether sunlight will be blocked by clouds at sunrise or sunset",
   "author": "Francesco Gola",
   "icon": "☀️",
   "desktopUI": "embedded",
   "mobileUI": "fullscreen",
-  "built": 1724766919553,
-  "builtReadable": "2024-08-27T13:55:19.553Z",
+  "built": 1724855145558,
+  "builtReadable": "2024-08-28T14:25:45.558Z",
   "screenshot": "screenshot.jpg"
 };
 
@@ -1180,9 +1180,47 @@ function instance($$self, $$props, $$invalidate) {
 			}).addTo(map);
 
 			horizonCircles.push(circle);
-			const labelLatLon = L.latLng(lat + distance / 111, lon);
 
-			const label = L.marker(labelLatLon, {
+			if (index === 0 || index === 2) {
+				const step = index === 0 ? 100 : 200;
+				const start = index === 0 ? LOW_CLOUDS_MIN : MIDDLE_CLOUDS_MIN;
+				const end = index === 0 ? LOW_CLOUDS_MAX : MIDDLE_CLOUDS_MAX;
+				const thinDashArray = '4, 6';
+				let thinWeight = 1.5;
+				let thinOpacity = 0.5;
+
+				if (index === 2) {
+					thinWeight = 1.7;
+					thinOpacity = 0.7;
+				}
+
+				for (let cloudHeight = start + step; cloudHeight < end; cloudHeight += step) {
+					const extraDistance = calculateHorizonDistance(elevation, cloudHeight);
+
+					const extraCircle = L.circle([lat, lon], {
+						color: circleStyles[index].color,
+						dashArray: thinDashArray,
+						weight: thinWeight,
+						fillOpacity: 0,
+						opacity: thinOpacity,
+						radius: extraDistance * 1000
+					}).addTo(map);
+
+					horizonCircles.push(extraCircle);
+
+					const extraLabel = L.marker([lat + extraDistance / 111, lon], {
+						icon: L.divIcon({
+							className: 'label',
+							html: `<div style="color: ${circleStyles[index].color}; font-weight: bold;">${index === 0 ? "+100m" : "+200m"}</div>`,
+							iconSize: [100, 20]
+						})
+					}).addTo(map);
+
+					labels.push(extraLabel);
+				}
+			}
+
+			const label = L.marker([lat + distance / 111, lon], {
 				icon: L.divIcon({
 					className: 'label',
 					html: `<div style="color: ${circleStyles[index].color}; font-weight: bold;">${labelsText[index]} (${Math.round(distance)}km)</div>`,
