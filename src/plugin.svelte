@@ -55,8 +55,8 @@ function drawHorizonCircles(lat: number, lon: number, distances: number[], label
     const circleStyles = [
         { color: 'blue', dashArray: '5, 5', weight: 2 },
         { color: 'blue', dashArray: '5, 5', weight: 2 },
-        { color: 'green', dashArray: '5, 5', weight: 2 },
-        { color: 'green', dashArray: '5, 5', weight: 2 },
+        { color: 'purple', dashArray: '5, 5', weight: 2 },
+        { color: 'purple', dashArray: '5, 5', weight: 2 },
         { color: 'red', dashArray: '5, 5', weight: 2 },
     ];
 

@@ -1,14 +1,14 @@
 const __pluginConfig =  {
   "name": "windy-plugin-horizon-distance",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "title": "Clouds Horizon Distance",
   "description": "This plugin displays circles on the Windy map representing the horizon distances for different cloud heights, calculated based on the users clicked position, including the directions of sunrise and sunset. This allows for an approximate estimation of whether sunlight will be blocked by clouds at sunrise or sunset",
   "author": "Francesco Gola",
   "icon": "☀️",
   "desktopUI": "embedded",
   "mobileUI": "fullscreen",
-  "built": 1724855145558,
-  "builtReadable": "2024-08-28T14:25:45.558Z",
+  "built": 1724855735070,
+  "builtReadable": "2024-08-28T14:35:35.070Z",
   "screenshot": "screenshot.jpg"
 };
 
@@ -1154,12 +1154,12 @@ function instance($$self, $$props, $$invalidate) {
 				weight: 2
 			},
 			{
-				color: 'green',
+				color: 'purple',
 				dashArray: '5, 5',
 				weight: 2
 			},
 			{
-				color: 'green',
+				color: 'purple',
 				dashArray: '5, 5',
 				weight: 2
 			},
