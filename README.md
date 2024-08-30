@@ -4,6 +4,8 @@ Find if clouds will fuck your sunrise or sunset
 
 # CHANGELOG
 
+-   0.4.5
+    -   L, M and H rings ranges tuned thatnks to the precious advices of @lionelpeyraud
 -   0.4
     -   Added intermediate rings for L and M clouds
 -   0.3

@@ -1,14 +1,14 @@
 const __pluginConfig =  {
   "name": "windy-plugin-horizon-distance",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "title": "Clouds Horizon Distance",
   "description": "This plugin displays circles on the Windy map representing the horizon distances for different cloud heights, calculated based on the users clicked position, including the directions of sunrise and sunset. This allows for an approximate estimation of whether sunlight will be blocked by clouds at sunrise or sunset",
   "author": "Francesco Gola",
   "icon": "☀️",
   "desktopUI": "embedded",
   "mobileUI": "fullscreen",
-  "built": 1724855735070,
-  "builtReadable": "2024-08-28T14:35:35.070Z",
+  "built": 1725055185018,
+  "builtReadable": "2024-08-30T21:59:45.018Z",
   "screenshot": "screenshot.jpg"
 };
 
@@ -1016,7 +1016,7 @@ function create_fragment(ctx) {
 			label3 = element("label");
 			b2 = element("b");
 			b2.textContent = "H";
-			t23 = text(" block from ");
+			t23 = text(" cover from ");
 			t24 = text(t24_value);
 			t25 = text(" km");
 			attr(legend0, "class", "svelte-1875exs");
@@ -1083,11 +1083,11 @@ function create_fragment(ctx) {
 }
 
 const OBSERVER_HEIGHT = 1.7;
-const LOW_CLOUDS_MIN = 300;
-const LOW_CLOUDS_MAX = 600;
-const MIDDLE_CLOUDS_MIN = 1500;
-const MIDDLE_CLOUDS_MAX = 2500;
-const HIGH_CLOUDS = 6500;
+const LOW_CLOUDS_MIN = 400;
+const LOW_CLOUDS_MAX = 1000;
+const MIDDLE_CLOUDS_MIN = 2000;
+const MIDDLE_CLOUDS_MAX = 4000;
+const HIGH_CLOUDS = 6000;
 const EXTRA_DISTANCE = 10;
 
 async function getElevation(lat, lon) {
@@ -1182,7 +1182,7 @@ function instance($$self, $$props, $$invalidate) {
 			horizonCircles.push(circle);
 
 			if (index === 0 || index === 2) {
-				const step = index === 0 ? 100 : 200;
+				const step = index === 0 ? 200 : 400;
 				const start = index === 0 ? LOW_CLOUDS_MIN : MIDDLE_CLOUDS_MIN;
 				const end = index === 0 ? LOW_CLOUDS_MAX : MIDDLE_CLOUDS_MAX;
 				const thinDashArray = '4, 6';
@@ -1208,10 +1208,10 @@ function instance($$self, $$props, $$invalidate) {
 
 					horizonCircles.push(extraCircle);
 
-					const extraLabel = L.marker([lat + extraDistance / 111, lon], {
+					const extraLabel = L.marker([lat + extraDistance / 111 + 0.02, lon], {
 						icon: L.divIcon({
 							className: 'label',
-							html: `<div style="color: ${circleStyles[index].color}; font-weight: bold;">${index === 0 ? "+100m" : "+200m"}</div>`,
+							html: `<div style="color: ${circleStyles[index].color}; font-weight: bold;">${index === 0 ? "+200m" : "+400m"}</div>`,
 							iconSize: [100, 20]
 						})
 					}).addTo(map);
@@ -1266,11 +1266,11 @@ function instance($$self, $$props, $$invalidate) {
 			});
 
 			drawHorizonCircles(lat, lon, Object.values(distances), [
-				"Low Clouds 300m",
-				"Low Clouds 600m",
-				"Mid Clouds 1500m",
-				"Mid Clouds 2500m",
-				"High Clouds 6500m"
+				"Low Clouds 400m",
+				"Low Clouds 1000m",
+				"Mid Clouds 2000m",
+				"Mid Clouds 4000m",
+				"High Clouds 6000m"
 			]);
 
 			drawSunLines(lat, lon, SunCalc.getTimes(new Date(), lat, lon), distances.highClouds);

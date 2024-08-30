@@ -5,11 +5,11 @@
 
     // Costanti
     const OBSERVER_HEIGHT = 1.7;
-    const LOW_CLOUDS_MIN = 300;
-    const LOW_CLOUDS_MAX = 600;
-    const MIDDLE_CLOUDS_MIN = 1500;
-    const MIDDLE_CLOUDS_MAX = 2500;
-    const HIGH_CLOUDS = 6500;
+    const LOW_CLOUDS_MIN = 400;
+    const LOW_CLOUDS_MAX = 1000;
+    const MIDDLE_CLOUDS_MIN = 2000;
+    const MIDDLE_CLOUDS_MAX = 4000;
+    const HIGH_CLOUDS = 6000;
     const EXTRA_DISTANCE = 10;
 
     // Variabili per gestire le informazioni del box
@@ -72,8 +72,8 @@ function drawHorizonCircles(lat: number, lon: number, distances: number[], label
         horizonCircles.push(circle);
 
         // Disegna cerchi aggiuntivi tra i range specificati
-        if (index === 0 || index === 2) {  // Intervalli 300-600m e 1500-2500m
-            const step = (index === 0) ? 100 : 200;  // 100m per il primo intervallo, 200m per il secondo
+        if (index === 0 || index === 2) {  // Intervalli 400-1000m e 2000-4000m
+            const step = (index === 0) ? 200 : 400;  // 200m per il primo intervallo, 400m per il secondo
             const start = (index === 0) ? LOW_CLOUDS_MIN : MIDDLE_CLOUDS_MIN;
             const end = (index === 0) ? LOW_CLOUDS_MAX : MIDDLE_CLOUDS_MAX;
 
@@ -82,7 +82,7 @@ function drawHorizonCircles(lat: number, lon: number, distances: number[], label
             let thinWeight = 1.5;  // Peso leggermente aumentato
             let thinOpacity = 0.5;  // Riduciamo un po' la trasparenza per maggiore visibilità
             
-            // Modifiche specifiche per i cerchi verdi (intervallo 1500-2500m)
+            // Modifiche specifiche per i cerchi verdi (intervallo 2000-4000m)
             if (index === 2) {
                 thinWeight = 1.7;  // Maggiore peso per i cerchi verdi
                 thinOpacity = 0.7;  // Meno trasparenza per i cerchi verdi
@@ -101,13 +101,13 @@ function drawHorizonCircles(lat: number, lon: number, distances: number[], label
                 horizonCircles.push(extraCircle);
 
                 // Aggiungi l'etichetta per ogni cerchio aggiuntivo direttamente sopra il cerchio
-                const extraLabel = L.marker([lat + (extraDistance / 111), lon], {
-                    icon: L.divIcon({
-                        className: 'label',
-                        html: `<div style="color: ${circleStyles[index].color}; font-weight: bold;">${index === 0 ? "+100m" : "+200m"}</div>`,
-                        iconSize: [100, 20]
-                    })
-                }).addTo(map);
+               const extraLabel = L.marker([lat + (extraDistance / 111) + 0.02, lon], { // Aggiungi 0.002 o un altro valore per spostare l'etichetta più in alto
+    icon: L.divIcon({
+        className: 'label',
+        html: `<div style="color: ${circleStyles[index].color}; font-weight: bold;">${index === 0 ? "+200m" : "+400m"}</div>`,
+        iconSize: [100, 20]
+    })
+}).addTo(map);
                 labels.push(extraLabel);
             }
         }
@@ -171,11 +171,11 @@ function drawHorizonCircles(lat: number, lon: number, distances: number[], label
             };
 
             drawHorizonCircles(lat, lon, Object.values(distances), [
-                "Low Clouds 300m", 
-                "Low Clouds 600m", 
-                "Mid Clouds 1500m", 
-                "Mid Clouds 2500m", 
-                "High Clouds 6500m"
+                "Low Clouds 400m", 
+                "Low Clouds 1000m", 
+                "Mid Clouds 2000m", 
+                "Mid Clouds 4000m", 
+                "High Clouds 6000m"
             ]);
             drawSunLines(lat, lon, SunCalc.getTimes(new Date(), lat, lon), distances.highClouds);
 
@@ -211,7 +211,7 @@ function drawHorizonCircles(lat: number, lon: number, distances: number[], label
         <legend>Horizon Distance (Clouds)</legend>
         <label><b>L</b> block range: between {distances.lowCloudsMin.toFixed(0)} and {distances.lowCloudsMax.toFixed(0)} km</label>
         <label><b>M</b> block range: between {distances.middleCloudsMin.toFixed(0)} and {distances.middleCloudsMax.toFixed(0)} km</label>
-        <label><b>H</b> block from {distances.highClouds.toFixed(0)} km</label>
+        <label><b>H</b> cover from {distances.highClouds.toFixed(0)} km</label>
     </fieldset>
 </div>
 
