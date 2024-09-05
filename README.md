@@ -41,8 +41,6 @@ If you need further assistance or another translation, feel free to ask!
 
 You can support the development of this plugin via the Buy me a Coffee platform
 
-<script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="francescogola" data-color="#7391b5" data-emoji="🍷"  data-font="Cookie" data-text="Buy me Wine" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#FFDD00" ></script>
-
-<a href="https://www.buymeacoffee.com/francescogola" target="_blank"><img src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.j" data-name="bmc-button" data-slug="francescogola" data-color="#7391b5" data-emoji="🍷"  data-font="Cookie" data-text="Buy me Wine" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#FFDD00" </a>
+<a type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="francescogola" data-color="#7391b5" data-emoji="🍷"  data-font="Cookie" data-text="Buy me Wine" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#FFDD00" ></a>
 
 Any contribution is greatly appreciated!
