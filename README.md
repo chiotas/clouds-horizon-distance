@@ -36,3 +36,11 @@ If you need further assistance or another translation, feel free to ask!
     -   Removed visual debug
 -   0.1
     -   Initial version of this plugin 
+
+# SUPPORT THE DEVELOPEMENT
+
+You can support the development of this plugin via the Buy me a Coffee platform
+
+<script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js" data-name="bmc-button" data-slug="francescogola" data-color="#7391b5" data-emoji="🍷"  data-font="Cookie" data-text="Buy me Wine" data-outline-color="#000000" data-font-color="#000000" data-coffee-color="#FFDD00" ></script>
+
+Any contribution is greatly appreciated!
