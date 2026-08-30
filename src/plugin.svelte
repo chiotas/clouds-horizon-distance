@@ -6,8 +6,13 @@
 
     import { isMobileOrTablet } from '@windy/rootScope';
 
-
-    const OBSERVER_HEIGHT_METERS = 1.7;
+    import {
+        apparentAltitudeRad,
+        blockDistanceKm,
+        computeEndPoint,
+        horizonDipRad,
+        horizonDistanceKm,
+    } from './geo';
 
     const LOW_CLOUDS_MIN_METERS = 400;
     const LOW_CLOUDS_MAX_METERS = 1200;
@@ -28,8 +33,6 @@
 
     const INITIAL_TS_RETRY_INTERVAL_MS = 50;
     const INITIAL_TS_RETRY_MAX_ATTEMPTS = 12;
-
-    const EARTH_RADIUS_KM = 6371;
 
     type SunMode = 'sunPath' | 'liveSun' | null;
 
@@ -52,12 +55,15 @@
     };
 
     // Live Sun values for the info box
-    let liveSunAltitudeDeg = 0;
+    // null = sole sotto l'orizzonte visibile. Fra -dip e 0 il sole si vede
+    // ancora, quindi un valore negativo e' legittimo e va mostrato.
+    let liveSunAltitudeDeg: number | null = null;
 
     let liveLowMinKm: number | null = null;
     let liveLowMaxKm: number | null = null;
     let liveMidMinKm: number | null = null;
     let liveMidMaxKm: number | null = null;
+    let liveHighKm: number | null = null;
 
 
     // Reactive flags for the markup
@@ -75,6 +81,13 @@
 let liveSunDot: any = null;
 let liveSunSegments: any[] = [];
 
+
+    // Istante mostrato dalla timeline Windy. Alba, tramonto e posizione del sole
+    // devono seguire QUESTO, non l'ora reale: il plugin serve a pianificare.
+    let currentTsMs: number = Date.now();
+    let lastSolarDayKey: number | null = null;
+
+    let clickSeq = 0;
 
     let lastClickedLat: number | null = null;
     let lastClickedLon: number | null = null;
@@ -122,6 +135,29 @@ let liveSunSegments: any[] = [];
         return Leaf.marker(pos, options);
     };
 
+    // Giorno solare locale, dedotto dalla longitudine. Serve solo a capire se la
+    // timeline e' passata a un altro giorno: gli azimut di alba e tramonto
+    // cambiano di giorno in giorno e vanno ridisegnati.
+    function solarDayKey(tsMs: number, lon: number): number {
+        return Math.floor((tsMs + (lon / 15) * 3600000) / 86400000);
+    }
+
+    // Alle alte latitudini alba e tramonto possono non esistere affatto.
+    function formatSunTime(d: Date): string {
+        const ms = d.getTime();
+        if (!Number.isFinite(ms)) return 'n/a';
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function timelineNow(): Date {
+        return new Date(currentTsMs);
+    }
+
+    function readTimelineTs(): number {
+        const raw = store && (store as any).get ? (store as any).get('timestamp') : null;
+        return normalizeTimestampMs(raw) ?? Date.now();
+    }
+
     function toKey(lat: number, lon: number): string {
         return `${lat.toFixed(4)},${lon.toFixed(4)}`;
     }
@@ -148,38 +184,9 @@ let liveSunSegments: any[] = [];
         return value;
     }
 
-    function calculateHorizonDistanceKm(elevMeters: number, cloudMeters: number): number {
-        const hObsKm = (elevMeters + OBSERVER_HEIGHT_METERS) / 1000;
-        const hCloudKm = cloudMeters / 1000;
-        return Math.sqrt(2 * EARTH_RADIUS_KM * hObsKm + hObsKm * hObsKm) +
-               Math.sqrt(2 * EARTH_RADIUS_KM * hCloudKm + hCloudKm * hCloudKm);
-    }
-
     function calculateAzimuthDegrees(lat: number, lon: number, time: Date): number {
         const sunPos = SunCalc.getPosition(time, lat, lon);
         return sunPos.azimuth * 180 / Math.PI + 180;
-    }
-
-    function computeEndPoint(lat: number, lon: number, azimuthDeg: number, distanceKm: number): [number, number] {
-        const bearing = azimuthDeg * Math.PI / 180;
-        const lat1 = lat * Math.PI / 180;
-        const lon1 = lon * Math.PI / 180;
-
-        const angDist = distanceKm / EARTH_RADIUS_KM;
-
-        const lat2 = Math.asin(
-            Math.sin(lat1) * Math.cos(angDist) +
-                Math.cos(lat1) * Math.sin(angDist) * Math.cos(bearing)
-        );
-
-        const lon2 =
-            lon1 +
-            Math.atan2(
-                Math.sin(bearing) * Math.sin(angDist) * Math.cos(lat1),
-                Math.cos(angDist) - Math.sin(lat1) * Math.sin(lat2)
-            );
-
-        return [lat2 * 180 / Math.PI, lon2 * 180 / Math.PI];
     }
 
     function clamp01(v: number) {
@@ -339,7 +346,7 @@ let liveSunSegments: any[] = [];
             const thinOpacity = isLow ? 0.5 : 0.7;
 
             for (let cloudMeters = start + step; cloudMeters < end; cloudMeters += step) {
-                const extraDistanceKm = calculateHorizonDistanceKm(elevMeters, cloudMeters);
+                const extraDistanceKm = horizonDistanceKm(elevMeters, cloudMeters);
                 addCircle(extraDistanceKm, index, thinOpacity, thinWeight, thinDash);
             }
         }
@@ -390,10 +397,15 @@ let liveSunSegments: any[] = [];
     const time = new Date(timestampMs);
     const pos = SunCalc.getPosition(time, lat, lon);
 
-    // Save Sun altitude for UI in all modes
-    liveSunAltitudeDeg = pos.altitude > 0 ? +(pos.altitude * 180 / Math.PI).toFixed(1) : 0;
+    // Stesso criterio di Live Sun: il sole e' "su" finche' e' sopra l'orizzonte
+    // VISIBILE, rifrazione e depressione dell'orizzonte incluse.
+    const apparentAlt = apparentAltitudeRad(pos.altitude);
 
-    if (pos.altitude <= 0) {
+    // Save Sun altitude for UI in all modes
+    liveSunAltitudeDeg = +(apparentAlt * 180 / Math.PI).toFixed(1);
+
+    if (!(apparentAlt > -horizonDipRad(elevationMeters))) {
+        liveSunAltitudeDeg = null;
         clearCurrentSunLine();
         return;
     }
@@ -419,172 +431,58 @@ let liveSunSegments: any[] = [];
         lastDrawnTsMs = timestampMs;
     }
 
-    // Spherical geometry:
-    // Finds ground distance (km along surface) from observer to where the sun ray intersects the sphere of radius R + cloudHeight
-    function calculateBlockDistanceKmSpherical(
-        lat: number,
-        lon: number,
-        elevMeters: number,
-        cloudMeters: number,
-        sunAzimuthDeg: number,
-        sunAltitudeRad: number
-    ): number | null {
-        if (!(sunAltitudeRad > 0)) return null;
-
-        const hObsKm = (elevMeters + OBSERVER_HEIGHT_METERS) / 1000;
-        const hCloudKm = cloudMeters / 1000;
-
-        const rObs = EARTH_RADIUS_KM + hObsKm;
-        const rCloud = EARTH_RADIUS_KM + hCloudKm;
-
-        if (!(rCloud > rObs)) return null;
-
-        const latRad = lat * Math.PI / 180;
-        const lonRad = lon * Math.PI / 180;
-
-        const sinLat = Math.sin(latRad);
-        const cosLat = Math.cos(latRad);
-        const sinLon = Math.sin(lonRad);
-        const cosLon = Math.cos(lonRad);
-
-        // ECEF basis at observer
-        const up = { x: cosLat * cosLon, y: cosLat * sinLon, z: sinLat };
-        const east = { x: -sinLon, y: cosLon, z: 0 };
-        const north = { x: -sinLat * cosLon, y: -sinLat * sinLon, z: cosLat };
-
-        const azRad = sunAzimuthDeg * Math.PI / 180;
-        const cosAlt = Math.cos(sunAltitudeRad);
-        const sinAlt = Math.sin(sunAltitudeRad);
-
-        // Local ENU direction
-        const e = Math.sin(azRad) * cosAlt;
-        const n = Math.cos(azRad) * cosAlt;
-        const u = sinAlt;
-
-        // Convert to ECEF direction
-        let dx = e * east.x + n * north.x + u * up.x;
-        let dy = e * east.y + n * north.y + u * up.y;
-        let dz = e * east.z + n * north.z + u * up.z;
-
-        const dLen = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (!(dLen > 0)) return null;
-
-        dx /= dLen;
-        dy /= dLen;
-        dz /= dLen;
-
-        // Observer position in ECEF (km)
-        const p0x = rObs * up.x;
-        const p0y = rObs * up.y;
-        const p0z = rObs * up.z;
-
-        // Solve |p0 + t d|^2 = rCloud^2
-        const b = 2 * (p0x * dx + p0y * dy + p0z * dz);
-        const c = (p0x * p0x + p0y * p0y + p0z * p0z) - rCloud * rCloud;
-
-        const disc = b * b - 4 * c;
-        if (!(disc >= 0)) return null;
-
-        const sqrtDisc = Math.sqrt(disc);
-
-        // We want the smallest positive t. With c < 0 (since rCloud > rObs), (-b + sqrtDisc)/2 is typically positive.
-        const t1 = (-b - sqrtDisc) / 2;
-        const t2 = (-b + sqrtDisc) / 2;
-
-        let t = Number.POSITIVE_INFINITY;
-        if (t1 > 0) t = Math.min(t, t1);
-        if (t2 > 0) t = Math.min(t, t2);
-
-        if (!Number.isFinite(t)) return null;
-
-        const p1x = p0x + t * dx;
-        const p1y = p0y + t * dy;
-        const p1z = p0z + t * dz;
-
-        const v0Len = Math.sqrt(p0x * p0x + p0y * p0y + p0z * p0z);
-        const v1Len = Math.sqrt(p1x * p1x + p1y * p1y + p1z * p1z);
-
-        if (!(v0Len > 0 && v1Len > 0)) return null;
-
-        let cosAng = (p0x * p1x + p0y * p1y + p0z * p1z) / (v0Len * v1Len);
-        cosAng = Math.max(-1, Math.min(1, cosAng));
-
-        const ang = Math.acos(cosAng);
-        let dKm = ang * EARTH_RADIUS_KM;
-
-        const MAX_KM = 1200;
-        if (!Number.isFinite(dKm)) return null;
-        dKm = Math.max(0, Math.min(MAX_KM, dKm));
-
-        return dKm;
-    }
-
     function drawOrUpdateLiveSun(lat: number, lon: number, timestampMs: number) {
     if (!isLiveSunEnabled()) return;
 
     const time = new Date(timestampMs);
     const pos = SunCalc.getPosition(time, lat, lon);
 
-    if (!(pos.altitude > 0)) {
-        liveSunAltitudeDeg = 0;
+    // SunCalc restituisce l'altitudine geometrica: la rifrazione solleva il sole
+    // di circa mezzo grado all'orizzonte, e dalla quota l'orizzonte visibile sta
+    // sotto quello astronomico. Senza queste due correzioni Live Sun si spegneva
+    // qualche minuto prima del tramonto reale.
+    const apparentAlt = apparentAltitudeRad(pos.altitude);
+    const sunsetAlt = -horizonDipRad(elevationMeters);
+
+    if (!(apparentAlt > sunsetAlt)) {
+        liveSunAltitudeDeg = null;
 
         liveLowMinKm = null;
         liveLowMaxKm = null;
         liveMidMinKm = null;
         liveMidMaxKm = null;
+        liveHighKm = null;
 
         clearLiveSunOverlays();
         return;
     }
 
-    // Sun altitude in degrees, 1 decimal
-    liveSunAltitudeDeg = +(pos.altitude * 180 / Math.PI).toFixed(1);
+    liveSunAltitudeDeg = +(apparentAlt * 180 / Math.PI).toFixed(1);
 
     const azimuthDeg = pos.azimuth * 180 / Math.PI + 180;
 
-    const lowMinKm = calculateBlockDistanceKmSpherical(
-        lat,
-        lon,
-        elevationMeters,
-        LOW_CLOUDS_MIN_METERS,
-        azimuthDeg,
-        pos.altitude
-    );
+    const block = (cloudMeters: number) =>
+        blockDistanceKm(elevationMeters, cloudMeters, apparentAlt);
 
-    const lowMaxKm = calculateBlockDistanceKmSpherical(
-        lat,
-        lon,
-        elevationMeters,
-        LOW_CLOUDS_MAX_METERS,
-        azimuthDeg,
-        pos.altitude
-    );
+    // Come per gli anelli, mostra solo gli strati coerenti col layer nuvole attivo.
+    const layers = overlayLayers(activeOverlayKey);
 
-    const midMinKm = calculateBlockDistanceKmSpherical(
-        lat,
-        lon,
-        elevationMeters,
-        MID_CLOUDS_MIN_METERS,
-        azimuthDeg,
-        pos.altitude
-    );
-
-    const midMaxKm = calculateBlockDistanceKmSpherical(
-        lat,
-        lon,
-        elevationMeters,
-        MID_CLOUDS_MAX_METERS,
-        azimuthDeg,
-        pos.altitude
-    );
+    const lowMinKm = layers.low ? block(LOW_CLOUDS_MIN_METERS) : null;
+    const lowMaxKm = layers.low ? block(LOW_CLOUDS_MAX_METERS) : null;
+    const midMinKm = layers.mid ? block(MID_CLOUDS_MIN_METERS) : null;
+    const midMaxKm = layers.mid ? block(MID_CLOUDS_MAX_METERS) : null;
+    const highKm = layers.high ? block(HIGH_CLOUDS_METERS) : null;
 
     // Save values for the info box
     liveLowMinKm = lowMinKm;
     liveLowMaxKm = lowMaxKm;
     liveMidMinKm = midMinKm;
     liveMidMaxKm = midMaxKm;
+    liveHighKm = highKm;
 
-    const valid = [lowMinKm, lowMaxKm, midMinKm, midMaxKm].filter(v => typeof v === 'number') as number[];
+    const valid = [lowMinKm, lowMaxKm, midMinKm, midMaxKm, highKm].filter(
+        v => typeof v === 'number'
+    ) as number[];
 
     if (valid.length === 0) {
         clearLiveSunOverlays();
@@ -667,6 +565,11 @@ let liveSunSegments: any[] = [];
     addRangeSegment(lowMinKm, lowMaxKm, 'rgba(90,160,255,0.95)', 7, 0.95);
     addRangeSegment(midMinKm, midMaxKm, 'rgba(200,120,255,0.95)', 7, 0.95);
 
+    // Le nuvole alte hanno una quota sola, quindi un trattino invece di una banda.
+    if (highKm !== null) {
+        addRangeSegment(highKm - 2, highKm + 2, 'rgba(255,90,90,0.95)', 7, 0.95);
+    }
+
     lastDrawnTsMs = timestampMs;
 }
 
@@ -721,10 +624,11 @@ let liveSunSegments: any[] = [];
             if (!isSunPathEnabled()) return;
             if (lastClickedLat === null || lastClickedLon === null) return;
 
-            const ts = store && (store as any).get ? (store as any).get('timestamp') : null;
-            const tsMs = normalizeTimestampMs(ts);
+            const raw = store && (store as any).get ? (store as any).get('timestamp') : null;
+            const tsMs = normalizeTimestampMs(raw);
 
             if (tsMs !== null) {
+                syncTimelineDay(tsMs);
                 scheduleSunUpdate(tsMs);
                 return;
             }
@@ -825,11 +729,8 @@ function resetSunScheduler() {
         clearMapOverlays();
 
         if (lastClickedLat !== null && lastClickedLon !== null) {
-            const ts = store && (store as any).get
-                ? (store as any).get('timestamp')
-                : Date.now();
-
-            scheduleSunUpdate(ts);
+            syncTimelineDay(readTimelineTs());
+            scheduleSunUpdate(currentTsMs);
         }
 
         updateExternalButtonsUi();
@@ -1102,23 +1003,34 @@ function resetSunScheduler() {
     const latRaw = event.latlng.lat as number;
     const lonRaw = event.latlng.lng as number;
 
+    // Due click ravvicinati possono risolversi fuori ordine: se la prima richiesta
+    // di elevazione e' lenta, arriva dopo la seconda e ridisegna tutto sul punto
+    // vecchio. Vince sempre e solo l'ultimo click.
+    const seq = ++clickSeq;
+
     try {
         elevationError = false;
-        elevationMeters = await getElevationMeters(latRaw, lonRaw);
+
+        const elevation = await getElevationMeters(latRaw, lonRaw);
+        if (seq !== clickSeq) return;
+
+        elevationMeters = elevation;
 
         distancesKm = {
-            lowMin: calculateHorizonDistanceKm(elevationMeters, LOW_CLOUDS_MIN_METERS),
-            lowMax: calculateHorizonDistanceKm(elevationMeters, LOW_CLOUDS_MAX_METERS),
-            midMin: calculateHorizonDistanceKm(elevationMeters, MID_CLOUDS_MIN_METERS),
-            midMax: calculateHorizonDistanceKm(elevationMeters, MID_CLOUDS_MAX_METERS),
-            high: calculateHorizonDistanceKm(elevationMeters, HIGH_CLOUDS_METERS)
+            lowMin: horizonDistanceKm(elevationMeters, LOW_CLOUDS_MIN_METERS),
+            lowMax: horizonDistanceKm(elevationMeters, LOW_CLOUDS_MAX_METERS),
+            midMin: horizonDistanceKm(elevationMeters, MID_CLOUDS_MIN_METERS),
+            midMax: horizonDistanceKm(elevationMeters, MID_CLOUDS_MAX_METERS),
+            high: horizonDistanceKm(elevationMeters, HIGH_CLOUDS_METERS)
         };
 
-        const now = new Date();
-        const sunTimes = SunCalc.getTimes(now, latRaw, lonRaw);
+        currentTsMs = readTimelineTs();
 
-        sunriseTime = sunTimes.sunrise.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        sunsetTime = sunTimes.sunset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const sunTimes = SunCalc.getTimes(timelineNow(), latRaw, lonRaw);
+        lastSolarDayKey = solarDayKey(currentTsMs, lonRaw);
+
+        sunriseTime = formatSunTime(sunTimes.sunrise);
+        sunsetTime = formatSunTime(sunTimes.sunset);
 
         lastClickedLat = latRaw;
         lastClickedLon = lonRaw;
@@ -1128,8 +1040,7 @@ function resetSunScheduler() {
             clearMapOverlays();
             clearCurrentSunLine();
 
-            const ts = store && (store as any).get ? (store as any).get('timestamp') : Date.now();
-            scheduleSunUpdate(ts);
+            scheduleSunUpdate(currentTsMs);
             return;
         }
 
@@ -1154,6 +1065,8 @@ function resetSunScheduler() {
         clearCurrentSunLine();
         clearLiveSunOverlays();
     } catch (err: any) {
+        if (seq !== clickSeq) return;
+
         console.error('Click processing failed', err);
         elevationError = true;
     }
@@ -1165,11 +1078,11 @@ function redrawBaseAtLastClick() {
     const lat = lastClickedLat;
     const lon = lastClickedLon;
 
-    const now = new Date();
-    const sunTimes = SunCalc.getTimes(now, lat, lon);
+    const sunTimes = SunCalc.getTimes(timelineNow(), lat, lon);
+    lastSolarDayKey = solarDayKey(currentTsMs, lon);
 
-    sunriseTime = sunTimes.sunrise.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    sunsetTime = sunTimes.sunset.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    sunriseTime = formatSunTime(sunTimes.sunrise);
+    sunsetTime = formatSunTime(sunTimes.sunset);
 
     drawHorizonCircles(
         lat,
@@ -1186,9 +1099,21 @@ function redrawBaseAtLastClick() {
 let activeOverlayKey: string = 'clouds';
 
 // Reactive flags for mobile card 2 visibility
-$: showLow = activeOverlayKey === 'clouds' || activeOverlayKey === 'lclouds';
-$: showMid = activeOverlayKey === 'clouds' || activeOverlayKey === 'mclouds';
-$: showHigh = activeOverlayKey === 'clouds' || activeOverlayKey === 'hclouds';
+$: showLow = overlayLayers(activeOverlayKey).low;
+$: showMid = overlayLayers(activeOverlayKey).mid;
+$: showHigh = overlayLayers(activeOverlayKey).high;
+
+// Quali strati di nuvole ha senso mostrare per il layer Windy attivo.
+// Legge activeOverlayKey direttamente: le variabili reattive showLow/showMid/
+// showHigh si aggiornano solo al ciclo successivo di Svelte, quindi dentro un
+// handler sono ancora al valore precedente. Quelle servono solo al markup.
+function overlayLayers(overlayKey: string) {
+    return {
+        low: overlayKey === 'clouds' || overlayKey === 'lclouds',
+        mid: overlayKey === 'clouds' || overlayKey === 'mclouds',
+        high: overlayKey === 'clouds' || overlayKey === 'hclouds',
+    };
+}
 
 function pickCircleIndicesForOverlay(overlayKey: string): number[] {
     // Index mapping:
@@ -1202,8 +1127,13 @@ function pickCircleIndicesForOverlay(overlayKey: string): number[] {
 function onOverlayChange(next: any) {
     activeOverlayKey = typeof next === 'string' ? next : 'clouds';
 
-    if (isLiveSunEnabled()) return;
     if (lastClickedLat === null || lastClickedLon === null) return;
+
+    if (isLiveSunEnabled()) {
+        clearLiveSunOverlays();
+        drawOrUpdateLiveSun(lastClickedLat, lastClickedLon, currentTsMs);
+        return;
+    }
 
     clearMapOverlays();
     clearCurrentSunLine();
@@ -1216,7 +1146,34 @@ function onOverlayChange(next: any) {
     }
 }
 
+    // Se la timeline e' passata a un altro giorno, gli azimut di alba e tramonto
+    // non sono piu' quelli disegnati: vanno rifatti. Gli anelli invece dipendono
+    // solo dalla quota, quindi non cambiano.
+    function syncTimelineDay(tsMs: number) {
+        currentTsMs = tsMs;
+
+        if (lastClickedLat === null || lastClickedLon === null) return;
+
+        const dayKey = solarDayKey(tsMs, lastClickedLon);
+        if (dayKey === lastSolarDayKey) return;
+
+        lastSolarDayKey = dayKey;
+
+        if (isLiveSunEnabled()) {
+            // Live Sun non disegna gli anelli: bastano gli orari nel pannello.
+            const sunTimes = SunCalc.getTimes(timelineNow(), lastClickedLat, lastClickedLon);
+            sunriseTime = formatSunTime(sunTimes.sunrise);
+            sunsetTime = formatSunTime(sunTimes.sunset);
+            return;
+        }
+
+        redrawBaseAtLastClick();
+    }
+
     function onTimestampChange(ts: any) {
+        const tsMs = normalizeTimestampMs(ts);
+        if (tsMs !== null) syncTimelineDay(tsMs);
+
         scheduleSunUpdate(ts);
     }
 
@@ -1239,6 +1196,8 @@ function onOverlayChange(next: any) {
             try {
                 (store as any).on('timestamp', onTimestampChange);
                 (store as any).on('overlay', onOverlayChange);
+
+                currentTsMs = readTimelineTs();
 
                 const currentOverlay = (store as any).get ? (store as any).get('overlay') : null;
                 if (typeof currentOverlay === 'string' && currentOverlay) {
@@ -1317,23 +1276,36 @@ function onOverlayChange(next: any) {
 
     {#if liveSunEnabled}
 
-        <div class="mobileLine">
-            <span class="k">Low clouds</span>
-            <span class="v">
-                {liveLowMinKm !== null && liveLowMaxKm !== null
-                    ? `${Math.round(liveLowMinKm)} to ${Math.round(liveLowMaxKm)} km`
-                    : 'n/a'}
-            </span>
-        </div>
+        {#if showLow}
+            <div class="mobileLine">
+                <span class="k">Low clouds</span>
+                <span class="v">
+                    {liveLowMinKm !== null && liveLowMaxKm !== null
+                        ? `${Math.round(liveLowMinKm)} to ${Math.round(liveLowMaxKm)} km`
+                        : 'n/a'}
+                </span>
+            </div>
+        {/if}
 
-        <div class="mobileLine">
-            <span class="k">Mid clouds</span>
-            <span class="v">
-                {liveMidMinKm !== null && liveMidMaxKm !== null
-                    ? `${Math.round(liveMidMinKm)} to ${Math.round(liveMidMaxKm)} km`
-                    : 'n/a'}
-            </span>
-        </div>
+        {#if showMid}
+            <div class="mobileLine">
+                <span class="k">Mid clouds</span>
+                <span class="v">
+                    {liveMidMinKm !== null && liveMidMaxKm !== null
+                        ? `${Math.round(liveMidMinKm)} to ${Math.round(liveMidMaxKm)} km`
+                        : 'n/a'}
+                </span>
+            </div>
+        {/if}
+
+        {#if showHigh}
+            <div class="mobileLine">
+                <span class="k">High clouds</span>
+                <span class="v">
+                    {liveHighKm !== null ? `${Math.round(liveHighKm)} km` : 'n/a'}
+                </span>
+            </div>
+        {/if}
 
     {:else}
 
@@ -1403,7 +1375,7 @@ function onOverlayChange(next: any) {
     <div class="mobileLine">
         <span class="k">Sun altitude</span>
         <span class="v">
-            {liveSunAltitudeDeg > 0
+            {liveSunAltitudeDeg !== null
                 ? `${liveSunAltitudeDeg.toFixed(1)}°`
                 : 'n/a'}
         </span>
@@ -1466,7 +1438,7 @@ function onOverlayChange(next: any) {
                 <label>Your Elevation: {lastClickedLat === null ? 'Click on the map' : `${Math.round(elevationMeters)} m`}</label>
             {/if}
 
-            {#if liveSunEnabled && liveSunAltitudeDeg > 0}
+            {#if liveSunEnabled && liveSunAltitudeDeg !== null}
                 <label>Sun altitude: {liveSunAltitudeDeg.toFixed(1)}°</label>
             {/if}
         </fieldset>
@@ -1475,19 +1447,30 @@ function onOverlayChange(next: any) {
             <fieldset>
                 <legend>Sun Obstruction Zones</legend>
 
-                <label>
-                    <b>Low clouds</b>:
-                    {liveLowMinKm !== null && liveLowMaxKm !== null
-                        ? `${Math.round(liveLowMinKm)}–${Math.round(liveLowMaxKm)} km`
-                        : 'n/a'}
-                </label>
+                {#if showLow}
+                    <label>
+                        <b>Low clouds</b>:
+                        {liveLowMinKm !== null && liveLowMaxKm !== null
+                            ? `${Math.round(liveLowMinKm)}–${Math.round(liveLowMaxKm)} km`
+                            : 'n/a'}
+                    </label>
+                {/if}
 
-                <label>
-                    <b>Mid clouds</b>:
-                    {liveMidMinKm !== null && liveMidMaxKm !== null
-                        ? `${Math.round(liveMidMinKm)}–${Math.round(liveMidMaxKm)} km`
-                        : 'n/a'}
-                </label>
+                {#if showMid}
+                    <label>
+                        <b>Mid clouds</b>:
+                        {liveMidMinKm !== null && liveMidMaxKm !== null
+                            ? `${Math.round(liveMidMinKm)}–${Math.round(liveMidMaxKm)} km`
+                            : 'n/a'}
+                    </label>
+                {/if}
+
+                {#if showHigh}
+                    <label>
+                        <b>High clouds</b>:
+                        {liveHighKm !== null ? `${Math.round(liveHighKm)} km` : 'n/a'}
+                    </label>
+                {/if}
             </fieldset>
         {:else}
             <fieldset>

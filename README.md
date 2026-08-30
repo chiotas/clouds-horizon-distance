@@ -24,6 +24,13 @@ I am not a meteorologist (and probably not even a photographer), so all construc
 If you need further assistance or another translation, feel free to ask!
 
 # CHANGELOG
+-   0.9.6
+    - Atmospheric refraction is now taken into account: rings are ~8% further out, matching the optical horizon instead of the purely geometric one
+    - Horizon dip: from a high viewpoint the sun sets later and further round the curve, and the plugin now knows it
+    - Sunrise and sunset now follow the date selected on the Windy timeline, instead of always showing today
+    - Sunrise/sunset shown as "n/a" at high latitudes when the sun does not rise or set
+    - Live Sun accuracy fixes
+    - Geometry extracted into a tested module
 -   0.9.5
     - Horizon distance formula accuracy improved
     - Fixed active cloud layer not being read on plugin startup

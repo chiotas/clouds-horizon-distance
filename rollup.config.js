@@ -79,7 +79,9 @@ export default {
     },
     plugins: [
         typescript({
-            sourceMap: useSourceMaps,
+            // I sourcemap li produce swc piu' avanti nella catena. Se li emette
+            // anche questo plugin, swc va a cercare un .js.map che non esiste.
+            sourceMap: false,
             inlineSources: false,
         }),
         rollupSwc({
